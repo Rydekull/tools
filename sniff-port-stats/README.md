@@ -2,7 +2,7 @@ sniff-port-stats.sh
 ========================
 
 Example output:
-
+```
 [root@server]# ./sniff-port-stats.sh 
 sniff-port-stats.sh -dump <interface> | -print <file>
 
@@ -55,3 +55,4 @@ TCP Statistics
       3 80	192.168.10.211	x.x.x.x
     233 443	192.168.10.211	192.168.10.232
 [root@server]# 
+```
