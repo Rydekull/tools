@@ -41,6 +41,10 @@ if [ ! -b "${RPIDEV}" ]
 then
   usage
 else
+  if [ "${RPIDEV}" = "/dev/mmcblk0" ]
+  then
+    RPIDEV=${RPIDEV}p
+  fi
   if [ "$(mount | grep -c ${RPIDEV})" -ge "1" ]  
   then
     usage "Device seems mounted, bailing just to be on the safe side"
