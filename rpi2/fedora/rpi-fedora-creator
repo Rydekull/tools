@@ -75,6 +75,7 @@ else
   xzcat ${FEDORA_IMAGE} | dd of=${RPIDEV} bs=1M
 fi
 #sha256sum Fedora-Minimal-armhfp-23-10-sda.raw.xz 
+sync
 
 p "Partitioning ${RPIDEV} and creating filesystems"
 DISKSIZE=$(parted ${RPIDEV} p | awk '$0 ~ /^Disk \/dev/ { print $NF }')
@@ -123,6 +124,12 @@ RPI_PASSWORD_HASH=$(python -c "import crypt; print crypt.crypt('redhat123')")
 grep -v ^root: ${RPIMNT}/etc/shadow > ${RPIMNT}/etc/shadow-new
 echo "root:${RPI_PASSWORD_HASH}:16605:0:99999:7:::" >> ${RPIMNT}/etc/shadow-new
 mv ${RPIMNT}/etc/shadow-new ${RPIMNT}/etc/shadow
+
+p "Setting hostname to: ${RPI_HOSTNAME}"
+echo ${RPI_HOSTNAME} > ${RPIMNT}/etc/hostname
+
+p "Removing /usr/lib/systemd/system/sysinit.target.wants/systemd-firstboot.service so it doesn't stop at it during first boot"
+rm -f ${RPIMNT}/usr/lib/systemd/system/sysinit.target.wants/systemd-firstboot.service
 
 p "Unmounting"
 umount ${RPIMNT}/boot
