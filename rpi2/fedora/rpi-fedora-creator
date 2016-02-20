@@ -1,0 +1,131 @@
+#!/bin/bash
+# 
+# Author: Alexander Rydekull <rydekull@redhat.com>
+#
+# Description:
+# Script to create a Fedora sdcard that can be used for a Raspberry PI
+#
+RPIDEV=$1
+RPIMNT=/rpimnt
+RPI_PASSWORD=rpifedora123
+RPI_HOSTNAME=rpi2f23
+
+PATH=/usr/bin:/usr/sbin:/bin:/sbin
+
+function usage()
+{
+  EXIT_REASON=$1
+  echo "Usage: $(basename $0) <device>"
+  if [ ! -z "${EXIT_REASON}" ]
+  then
+    echo "  Reason: ${EXIT_REASON}"
+  fi
+  exit 1
+}
+
+function p()
+{
+  DATE=$(date '+%Y%m%d %H:%M:%S')
+  echo "$DATE - $1"
+}
+
+function download
+{
+  URL=$1 
+  FILE=$(echo $URL | sed 's/.*\///g')
+  [ ! -f /tmp/$FILE ] && curl -Lo /tmp/$FILE $URL
+  export DOWNLOADED_FILE=/tmp/$FILE
+}
+
+if [ ! -b "${RPIDEV}" ]
+then
+  usage
+else
+  if [ "$(mount | grep -c ${RPIDEV})" -ge "1" ]  
+  then
+    usage "Device seems mounted, bailing just to be on the safe side"
+  fi
+fi  
+
+if [ $(whoami) != "root" ]
+then
+  usage "Need to be run as root"
+fi
+
+for BIN in xzcat unzip dd sha256sum parted
+do
+  which $BIN 2>&1 > /dev/null
+  if [ "$?" = "1" ] 
+  then
+    echo "$BIN missing. Exiting."
+    exit 99
+  fi
+done
+
+p "Downloading Fedora Minimal"
+download http://ftp.acc.umu.se/mirror/fedora/linux/releases/23/Images/armhfp/Fedora-Minimal-armhfp-23-10-sda.raw.xz
+FEDORA_IMAGE=${DOWNLOADED_FILE}
+
+p "Writing image to ${RPIDEV}"
+which pv 2>&1 > /dev/null
+if [ "$?" = "0" ]
+then
+  xzcat ${FEDORA_IMAGE} | pv | dd of=${RPIDEV} bs=1M
+else
+  xzcat ${FEDORA_IMAGE} | dd of=${RPIDEV} bs=1M
+fi
+#sha256sum Fedora-Minimal-armhfp-23-10-sda.raw.xz 
+
+p "Partitioning ${RPIDEV} and creating filesystems"
+DISKSIZE=$(parted ${RPIDEV} p | awk '$0 ~ /^Disk \/dev/ { print $NF }')
+PART1_SIZE=$(parted ${RPIDEV} p | grep "^ 1" | awk '{ print $2, $3 }')
+parted ${RPIDEV} rm 1 mkpart primary fat32 ${PART1_SIZE} resizepart 3 ${DISKSIZE}
+mkfs.vfat ${RPIDEV}1 
+e2fsck -f ${RPIDEV}3 
+resize2fs ${RPIDEV}3
+
+p "Downloading RPI Firmware"
+download https://github.com/raspberrypi/firmware/archive/master.zip
+RPI_FIRMWARE_ZIP=${DOWNLOADED_FILE}
+
+p "Creating directory to work in ${RPIMNT} and mounting devices"
+[ ! -d ${RPIMNT} ] && mkdir ${RPIMNT}
+mount ${RPIDEV}3 ${RPIMNT}
+mount ${RPIDEV}1 ${RPIMNT}/boot
+
+p "Installing firmware"
+unzip -q ${RPI_FIRMWARE_ZIP} firmware-master/boot/* -d ${RPIMNT}/boot
+unzip -q ${RPI_FIRMWARE_ZIP} firmware-master/modules/*-v7+/* -d ${RPIMNT}/lib/
+mv ${RPIMNT}/boot/firmware-master/boot/* ${RPIMNT}/boot/
+mv ${RPIMNT}/lib/firmware-master/modules/*-v7+/ ${RPIMNT}/lib/modules/
+rm -rf ${RPIMNT}/boot/firmware-master ${RPIMNT}/lib/firmware-master/
+
+p "Fixing /etc/fstab"
+#sed -i -e '/\/boot/s/UUID=[0-9a-f\-]*/#UUID='$(blkid -s UUID /dev/sdb1 -o value)'/g' -e '/\/boot/s/ext4/vfat/g' ${RPIMNT}/etc/fstab
+sed -i -e '/\/boot/s/UUID=[0-9a-f\-]*/\/dev\/mmcblk0p1 /g' -e '/\/boot/s/ext4/vfat/g' ${RPIMNT}/etc/fstab
+
+p "Setting up boot options"
+echo "dwc_otg.lpm_enable=0 console=ttyAMA0,115200 console=tty1 root=/dev/mmcblk0p3 rootfstype=ext4 elevator=deadline rootwait" > ${RPIMNT}/boot/cmdline.txt
+cat <<EOF> ${RPIMNT}/boot/config.txt
+disable_overscan=1
+hdmi_force_hotplug=1
+hdmi_group=1
+hdmi_mode=16
+EOF
+
+p "Adding rpi-update command"
+download https://raw.githubusercontent.com/Hexxeh/rpi-update/master/rpi-update
+mv ${DOWNLOADED_FILE} ${RPIMNT}/usr/bin/rpi-update
+chmod +x ${RPIMNT}/usr/bin/rpi-update
+
+p "Setting root password to: redhat123"
+RPI_PASSWORD_HASH=$(python -c "import crypt; print crypt.crypt('redhat123')")
+grep -v ^root: ${RPIMNT}/etc/shadow > ${RPIMNT}/etc/shadow-new
+echo "root:${RPI_PASSWORD_HASH}:16605:0:99999:7:::" >> ${RPIMNT}/etc/shadow-new
+mv ${RPIMNT}/etc/shadow-new ${RPIMNT}/etc/shadow
+
+p "Unmounting"
+umount ${RPIMNT}/boot
+umount ${RPIMNT}
+sync
+p "Done"
