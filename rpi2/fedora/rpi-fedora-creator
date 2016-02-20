@@ -70,21 +70,22 @@ p "Downloading Fedora Minimal"
 download http://ftp.acc.umu.se/mirror/fedora/linux/releases/23/Images/armhfp/Fedora-Minimal-armhfp-23-10-sda.raw.xz
 FEDORA_IMAGE=${DOWNLOADED_FILE}
 
-p "Writing image to ${RPIDEV}"
+p "Writing image to $1"
 which pv 2>&1 > /dev/null
 if [ "$?" = "0" ]
 then
-  xzcat ${FEDORA_IMAGE} | pv | dd of=${RPIDEV} bs=1M
+  xzcat ${FEDORA_IMAGE} | pv | dd of=$1 bs=1M
 else
-  xzcat ${FEDORA_IMAGE} | dd of=${RPIDEV} bs=1M
+  xzcat ${FEDORA_IMAGE} | dd of=$1 bs=1M
 fi
 #sha256sum Fedora-Minimal-armhfp-23-10-sda.raw.xz 
 sync
+partprobe
 
-p "Partitioning ${RPIDEV} and creating filesystems"
-DISKSIZE=$(parted ${RPIDEV} p | awk '$0 ~ /^Disk \/dev/ { print $NF }')
-PART1_SIZE=$(parted ${RPIDEV} p | grep "^ 1" | awk '{ print $2, $3 }')
-parted ${RPIDEV} rm 1 mkpart primary fat32 ${PART1_SIZE} resizepart 3 ${DISKSIZE}
+p "Partitioning $1 and creating filesystems"
+DISKSIZE=$(parted $1 p | awk '$0 ~ /^Disk \/dev/ { print $NF }')
+PART1_SIZE=$(parted $1 p | grep "^ 1" | awk '{ print $2, $3 }')
+parted $1 rm 1 mkpart primary fat32 ${PART1_SIZE} resizepart 3 ${DISKSIZE}
 mkfs.vfat ${RPIDEV}1 
 e2fsck -f ${RPIDEV}3 
 resize2fs ${RPIDEV}3
