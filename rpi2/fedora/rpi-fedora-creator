@@ -41,7 +41,7 @@ if [ ! -b "${RPIDEV}" ]
 then
   usage
 else
-  if [ "${RPIDEV}" = "/dev/mmcblk0" ]
+  if [ "$(echo ${RPIDEV} | grep -c mmcblk)" != "0" ]
   then
     RPIDEV_PART=${RPIDEV}p
   else
