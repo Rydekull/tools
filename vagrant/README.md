@@ -1,4 +1,4 @@
-etup vagrant on Fedora 23
+# Setup vagrant on Fedora 23
 
 
 ```
