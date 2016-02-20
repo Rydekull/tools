@@ -125,11 +125,11 @@ download https://raw.githubusercontent.com/Hexxeh/rpi-update/master/rpi-update
 mv ${DOWNLOADED_FILE} ${RPIMNT}/usr/bin/rpi-update
 chmod +x ${RPIMNT}/usr/bin/rpi-update
 
-#p "Setting root password to: redhat123"
-#RPI_PASSWORD_HASH=$(python -c "import crypt; print crypt.crypt('redhat123')")
-#grep -v ^root: ${RPIMNT}/etc/shadow > ${RPIMNT}/etc/shadow-new
-#echo "root:${RPI_PASSWORD_HASH}:16605:0:99999:7:::" >> ${RPIMNT}/etc/shadow-new
-#mv ${RPIMNT}/etc/shadow-new ${RPIMNT}/etc/shadow
+p "Setting root password to: redhat123"
+RPI_PASSWORD_HASH=$(python -c "import crypt; print crypt.crypt('redhat123')")
+grep -v ^root: ${RPIMNT}/etc/shadow > ${RPIMNT}/etc/shadow-new
+echo "root:${RPI_PASSWORD_HASH}:16605:0:99999:7:::" >> ${RPIMNT}/etc/shadow-new
+mv ${RPIMNT}/etc/shadow-new ${RPIMNT}/etc/shadow
 
 p "Setting hostname, root password, timezone and locale"
 systemd-firstboot --root=${RPIMNT} --hostname=${RPI_HOSTNAME} --root-password=${RPI_PASSWORD} --timezone=Europe/Stockholm --locale=en_US.UTF-8 --locale-messages=en_US.UTF-8
