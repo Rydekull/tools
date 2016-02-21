@@ -132,7 +132,14 @@ echo "root:${RPI_PASSWORD_HASH}:16605:0:99999:7:::" >> ${RPIMNT}/etc/shadow-new
 mv ${RPIMNT}/etc/shadow-new ${RPIMNT}/etc/shadow
 
 p "Setting hostname, root password, timezone and locale"
-systemd-firstboot --root=${RPIMNT} --hostname=${RPI_HOSTNAME} --root-password=${RPI_PASSWORD} --timezone=Europe/Stockholm --locale=en_US.UTF-8 --locale-messages=en_US.UTF-8
+systemd-firstboot --root=${RPIMNT} --hostname=${RPI_HOSTNAME} --timezone=Europe/Stockholm --locale=en_US.UTF-8 --locale-messages=en_US.UTF-8
+
+p "Inserting a /etc/rc.d/rc.local file setting ondemand governor on boot"
+cat <<EOF> ${RPIMNT}/etc/rc.d/rc.local 
+#!/bin/bash
+for i in $(ls -d /sys/devices/system/cpu/cpu[0-9]) ; do echo ondemand > $i/cpufreq/scaling_governor ; done
+EOF
+chmod u+x ${RPIMNT}/etc/rc.d/rc.local
 
 p "Unmounting"
 umount ${RPIMNT}/boot
